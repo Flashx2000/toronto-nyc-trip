@@ -390,10 +390,6 @@
   function render(force) {
     S.route = parseHash();
     const r = S.route;
-    if (r.tab === "plan" && !r.day) {
-      const d = todayDay() || days()[0];
-      if (d) { location.replace(planHref(d)); return; }
-    }
     if (r.tab === "guide" && !r.city) {
       const keys = Object.keys(S.trip.guides);
       const t = todayDay();
@@ -401,17 +397,77 @@
       return;
     }
     renderChrome();
-    const key = JSON.stringify([r.tab, r.day, r.city, S.editing]);
+    const key = JSON.stringify([r.tab, r.city, S.editing]);
+    const tabChanged = !S.mainKey || JSON.parse(S.mainKey)[0] !== r.tab || JSON.parse(S.mainKey)[1] !== r.city;
     if (force || key !== S.mainKey) {
-      const tabChanged = !S.mainKey || JSON.parse(S.mainKey)[0] !== r.tab || JSON.parse(S.mainKey)[1] !== r.day || JSON.parse(S.mainKey)[2] !== r.city;
       S.mainKey = key;
       renderMain();
-      const activeChip = $(".chip-day.active");
-      if (activeChip) activeChip.scrollIntoView({ block: "nearest", inline: "center" });
       if (tabChanged && !force) window.scrollTo(0, 0);
+    }
+    if (r.tab === "plan") {
+      const target = (r.day || "") + "/" + (r.stop || "");
+      if (tabChanged || target !== S.scrollTarget) {
+        S.scrollTarget = target;
+        const smooth = !tabChanged;
+        requestAnimationFrame(() => {
+          if (r.stop) scrollToEl(document.getElementById("stop-" + r.stop), smooth, true);
+          else if (r.day) scrollToEl(document.getElementById("day-" + r.day), smooth);
+          else if (tabChanged) { const t = todayDay(); if (t) scrollToEl(document.getElementById("day-" + t.id), false); }
+          syncActiveDay(true);
+        });
+      }
+    } else {
+      S.scrollTarget = null;
     }
     renderSheet();
   }
+
+  // Sticky offsets: the top bar plus (on Plan) the day strip.
+  function stickyOffset() {
+    const top = $(".topbar") ? $(".topbar").offsetHeight : 0;
+    const strip = $(".plan-toolbar");
+    return top + (strip ? strip.offsetHeight : 0) + 8;
+  }
+  function scrollToEl(el, smooth, flash) {
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset();
+    const far = Math.abs(y - window.scrollY) > window.innerHeight * 1.5;
+    window.scrollTo({ top: Math.max(0, y), behavior: smooth && !far ? "smooth" : "auto" });
+    if (flash) {
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+    }
+  }
+  // Highlight the day chip for the section currently under the sticky strip.
+  let activeDayId = null;
+  function syncActiveDay(force) {
+    if (S.route.tab !== "plan") return;
+    const sections = document.querySelectorAll(".day-section");
+    if (!sections.length) return;
+    const line = stickyOffset() + 40;
+    let current = sections[0];
+    sections.forEach((sec) => { if (sec.getBoundingClientRect().top <= line) current = sec; });
+    const id = current.dataset.day;
+    if (id === activeDayId && !force) return;
+    activeDayId = id;
+    const strip = $("#dayStrip");
+    if (!strip) return;
+    strip.querySelectorAll(".chip-day").forEach((c) => c.classList.toggle("active", c.dataset.day === id));
+    const chip = strip.querySelector(`.chip-day[data-day="${CSS.escape(id)}"]`);
+    if (chip) strip.scrollTo({ left: chip.offsetLeft - strip.clientWidth / 2 + chip.offsetWidth / 2, behavior: force ? "auto" : "smooth" });
+  }
+  let scrollTick = false;
+  window.addEventListener("scroll", () => {
+    if (scrollTick) return;
+    scrollTick = true;
+    requestAnimationFrame(() => { scrollTick = false; syncActiveDay(false); });
+  }, { passive: true });
+  function setTopVar() {
+    const tb = $(".topbar");
+    if (tb) document.documentElement.style.setProperty("--top-h", tb.offsetHeight + "px");
+  }
+  window.addEventListener("resize", setTopVar);
 
   function renderChrome() {
     const t = S.trip;
@@ -443,6 +499,7 @@
     }
 
     const tabs = [["today", "Today", "sun"], ["plan", "Plan", "calendar"], ["guide", "Guide", "compass"], ["trip", "Trip", "ticket"]];
+    setTopVar();
     $("#tabbar").innerHTML = `<div class="tabbar-inner">${tabs.map(([k, label, ic]) =>
       `<a href="#/${k}" class="tab ${S.route.tab === k ? "active" : ""}" ${S.route.tab === k ? 'aria-current="page"' : ""}>${icon(ic)}<span>${label}</span></a>`).join("")}</div>`;
   }
@@ -497,11 +554,15 @@
       html += `</section>`;
     }
 
+    const stayDay = today || heroDay;
+    const stay = stayOf(stayDay);
+    if (stay && stay.place) html += stayCard(stay, today ? "Tonight you're staying at" : "You'll be staying at");
+
     if (today) {
       const rem = remindersFor(today);
       if (rem.length) html += card("Reminders", "bell", `<ul class="reminders">${rem.map((x) => `<li>${x}</li>`).join("")}</ul>`, "reminder-card");
       html += card("Today's plan", "calendar", `<ol class="mini-plan">${stopsOf(today).map((s) => miniStop(today, s)).join("")}</ol>
-        <a class="more" href="${planHref(today)}">Open the full day ${icon("right")}</a>`);
+        <a class="more" href="${planHref(today)}">See today in Plan ${icon("right")}</a>`);
       const tomorrow = all[all.indexOf(today) + 1];
       if (tomorrow) {
         const firstStop = stopsOf(tomorrow).find((s) => s.time);
@@ -524,15 +585,32 @@
       html += `<a class="card missing" href="#/trip">${icon("alert")}<div><h3>Still to add</h3><p class="muted">${missing.map((b) => esc(b.title)).join(" · ")}</p></div>${icon("right")}</a>`;
     }
 
+    if (S.trip.contacts.length) {
+      html += card("Key contacts", "phone", `<ul class="contact-glance">${S.trip.contacts.map((c) => `<li>
+        <span><b>${esc(c.name)}</b><small>${esc(c.role)}</small></span>
+        ${c.phone ? `<a class="phone-pill" href="${telHref(c.phone)}">${icon("phone")} ${esc(c.phone)}</a>` : ""}</li>`).join("")}</ul>`);
+    }
+
     const event = S.trip.days.find((d) => d.event);
-    const contact = S.trip.contacts[0];
     html += `<section class="quick">
       <a class="quick-btn" href="https://www.google.com/search?q=${encodeURIComponent("weather " + (today ? CITIES[today.city]?.name || "" : "Toronto"))}" target="_blank" rel="noopener">${icon("cloud")}<span>Weather</span></a>
       ${event ? `<a class="quick-btn" href="${planHref(event)}">${icon("briefcase")}<span>Event day</span></a>` : ""}
-      ${contact && contact.phone ? `<a class="quick-btn" href="${telHref(contact.phone)}">${icon("phone")}<span>Call ${esc(contact.name)}</span></a>` : ""}
       <a class="quick-btn" href="#/guide">${icon("compass")}<span>City guide</span></a>
+      <a class="quick-btn" href="#/trip">${icon("ticket")}<span>Bookings</span></a>
     </section>`;
     return html;
+  }
+
+  function stayCard(stay, label) {
+    return `<section class="card stay-card">
+      <div class="stay-top"><span class="bubble cat-stay">${icon("bed")}</span>
+        <div><p class="eyebrow">${esc(label)}</p><h3>${esc(stay.title)}</h3><p class="stay-addr">${esc(stay.place)}</p></div></div>
+      ${stay.details ? `<p class="muted stay-details">${esc(stay.details)}</p>` : ""}
+      <div class="stay-actions">
+        <a class="btn ghost sm" href="${mapsUrl(stay.place)}" target="_blank" rel="noopener">${icon("pin")} Map</a>
+        <a class="btn primary sm" href="${dirUrl(stay.place)}" target="_blank" rel="noopener">${icon("route")} Directions home</a>
+      </div>
+    </section>`;
   }
 
   function nowCard(label, x, live) {
@@ -547,7 +625,7 @@
   }
   function miniStop(d, s) {
     const c = CATS[s.cat] || CATS.free;
-    return `<li class="${stopState(d, s)}"><a href="${planHref(d, s)}"><span class="t">${fmtTime(s.time) || "·"}</span><span class="bubble sm cat-${esc(s.cat)}">${icon(c.icon)}</span><span class="n">${esc(s.title)}</span></a></li>`;
+    return `<li class="${stopState(d, s)}"><a href="${planHref(d, s)}"><span class="t">${fmtTime(s.time) || "·"}</span><span class="bubble sm cat-${esc(s.cat)}">${icon(c.icon)}</span><span class="n">${esc(s.title)}${s.area ? `<small>${esc(s.area)}${s.via ? " · " + esc(s.via) : ""}</small>` : ""}</span></a></li>`;
   }
   function remindersFor(d) {
     const out = d.notes.map(esc);
@@ -561,116 +639,95 @@
   }
 
   // ===================================================================
-  // Plan
+  // Plan: every day on one scrolling page, every detail visible
   // ===================================================================
-  function viewPlan(dayId) {
-    const all = days();
-    const d = dayById(dayId) || all[0];
-    if (!d) return `<div class="empty">No days yet.${S.editing ? ` <button class="btn" data-act="add-day">${icon("plus")} Add a day</button>` : ""}</div>`;
-    const n = nowIn(TZ);
-    const idx = all.indexOf(d);
+  const stayOf = (d) => (d && d.stay ? S.trip.bookings.find((b) => b.id === d.stay) : null);
+  const dirUrl = (place) => "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(place);
 
-    let html = `<nav class="day-strip" aria-label="Days">${all.map((x) => {
+  function viewPlan() {
+    const all = days();
+    if (!all.length) return `<div class="empty">No days yet.${S.editing ? ` <button class="btn" data-act="add-day">${icon("plus")} Add a day</button>` : ""}</div>`;
+    const n = nowIn(TZ);
+    const compact = load("trip-density") === "compact";
+
+    let html = `<div class="plan-toolbar"><nav class="day-strip" id="dayStrip" aria-label="Jump to day">${all.map((x) => {
       const o = dateObj(x.date);
       const top = o ? o.toLocaleDateString("en-US", { weekday: "short" }) : (x.city === "home" ? "Fly" : "More");
       const big = o ? o.getDate() : (x.city === "home" ? "Home" : CITIES[x.city]?.short || "TBD");
-      return `<a href="${planHref(x)}" class="chip-day city-${esc(x.city)} ${x === d ? "active" : ""} ${x.date === n.date ? "today" : ""}">
-        <span class="dw">${esc(top)}</span><span class="dn ${o ? "" : "word"}">${esc(big)}</span><i class="city-dot"></i></a>`;
-    }).join("")}${S.editing ? `<button class="chip-day add" data-act="add-day" aria-label="Add a day">${icon("plus")}</button>` : ""}</nav>`;
+      return `<button class="chip-day city-${esc(x.city)} ${x.date === n.date ? "today" : ""}" data-act="jump" data-day="${esc(x.id)}">
+        <span class="dw">${esc(top)}</span><span class="dn ${o ? "" : "word"}">${esc(big)}</span><i class="city-dot"></i></button>`;
+    }).join("")}${S.editing ? `<button class="chip-day add" data-act="add-day" aria-label="Add a day">${icon("plus")}</button>` : ""}</nav></div>
+      <div class="plan-controls"><p class="muted">${all.length} days · tap a date to jump</p>
+      <div class="density" role="radiogroup" aria-label="Detail level">
+        <button data-act="density" data-val="detailed" class="${compact ? "" : "on"}" role="radio" aria-checked="${!compact}">Detailed</button>
+        <button data-act="density" data-val="compact" class="${compact ? "on" : ""}" role="radio" aria-checked="${compact}">Compact</button>
+      </div></div>`;
 
-    const rUrl = routeUrl(d);
-    html += `<section class="day-hero city-${esc(d.city)}">
-      ${cityArt(d)}
-      <div class="day-hero-text">
-        <p class="eyebrow">Day ${idx + 1} · ${d.date ? fmtDate(d.date, { weekday: "long", month: "long", day: "numeric" }) : "Dates to come"}</p>
-        <h1>${esc(d.title)}</h1>
-        ${d.route ? `<p class="route-chip">${icon("route")} ${esc(d.route)}</p>` : ""}
-      </div>
-    </section>`;
-
-    if (d.summary) html += `<p class="lede">${esc(d.summary)}</p>`;
-    html += `<div class="day-actions">
-      ${rUrl ? `<a class="btn ghost sm" href="${rUrl}" target="_blank" rel="noopener">${icon("map")} Day route in Maps</a>` : ""}
-      ${S.editing ? `<button class="btn ghost sm" data-act="edit" data-type="day" data-id="${esc(d.id)}">${icon("pencil")} Edit day</button>` : ""}
-    </div>`;
-    if (d.notes.length) {
-      html += `<section class="callout">${icon("bell")}<div><h3>Heads up</h3><ul>${d.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></section>`;
-    }
-
-    const stops = stopsOf(d);
-    html += `<ol class="timeline">`;
-    stops.forEach((s, i) => {
-      const c = CATS[s.cat] || CATS.free;
-      const state = stopState(d, s);
-      if (i > 0 && s.via) html += `<li class="via">${icon("walk")}<span>${esc(s.via)}</span></li>`;
-      html += `<li class="stop ${state} cat-${esc(s.cat)}">
-        <a class="stop-link" href="${planHref(d, s)}" data-act="open-stop" data-id="${esc(s.id)}">
-          <div class="stop-time">${s.time ? `<b>${fmtTime(s.time)}</b>${s.end ? `<span>${fmtTime(s.end)}</span>` : ""}` : "<b>·</b>"}</div>
-          <div class="stop-rail"><span class="bubble">${icon(c.icon)}</span></div>
-          <div class="stop-body">
-            <p class="eyebrow">${esc(c.label)}${s.area ? " · " + esc(s.area) : ""}${state === "current" ? ' · <span class="live-tag">Now</span>' : ""}</p>
-            <h3>${esc(s.title)}</h3>
-            ${s.desc ? `<p class="clamp">${esc(s.desc)}</p>` : ""}
-            <div class="badges">
-              ${s.booking === "book" ? `<span class="badge warn">${icon("ticket")} Book ahead</span>` : ""}
-              ${s.booking === "booked" ? `<span class="badge ok">${icon("check")} Booked</span>` : ""}
-              ${s.reminder ? `<span class="badge note">${icon("bell")} Reminder</span>` : ""}
-              ${s.tips.length ? `<span class="badge plain">${s.tips.length} tip${s.tips.length > 1 ? "s" : ""}</span>` : ""}
-            </div>
-          </div>
-          <span class="chev">${icon(S.editing ? "pencil" : "right")}</span>
-        </a>
-      </li>`;
-    });
-    html += `</ol>`;
-    if (!stops.length) html += `<div class="empty soft">${icon("sparkle")}<p>Nothing planned here yet.</p><a class="btn ghost sm" href="#/guide/${esc(S.trip.guides[d.city] ? d.city : "")}">Browse the ${esc(CITIES[d.city]?.name || "")} guide</a></div>`;
-    if (S.editing) html += `<button class="add-row" data-act="add-stop" data-day="${esc(d.id)}">${icon("plus")} Add a stop</button>`;
-
-    const prev = all[idx - 1], next = all[idx + 1];
-    html += `<nav class="pager">
-      ${prev ? `<a href="${planHref(prev)}">${icon("left")}<span><small>${esc(dayLabel(prev))}</small>${esc(prev.title)}</span></a>` : "<span></span>"}
-      ${next ? `<a class="next" href="${planHref(next)}"><span><small>${esc(dayLabel(next))}</small>${esc(next.title)}</span>${icon("right")}</a>` : "<span></span>"}
-    </nav>`;
+    html += `<div class="days ${compact ? "compact" : ""}">${all.map((d, i) => daySection(d, i)).join("")}</div>`;
+    if (S.editing) html += `<button class="add-row" data-act="add-day">${icon("plus")} Add a day</button>`;
     return html;
   }
 
-  // ===================================================================
-  // Stop detail sheet
-  // ===================================================================
-  function stopSheet(found) {
-    const { day: d, stop: s } = found;
-    const c = CATS[s.cat] || CATS.free;
-    const list = stopsOf(d);
-    const i = list.indexOf(s);
-    const prev = list[i - 1], next = list[i + 1];
-    const rows = [];
-    if (s.address) rows.push(`<a class="info-row" href="${mapsUrl(s.address)}" target="_blank" rel="noopener">${icon("pin")}<span><small>Address</small>${esc(s.address)}</span>${icon("external", "end")}</a>`);
-    if (s.hours) rows.push(`<div class="info-row">${icon("clock")}<span><small>Hours</small>${esc(s.hours)}</span></div>`);
-    if (s.cost) rows.push(`<div class="info-row">${icon("dollar")}<span><small>Cost</small>${esc(s.cost)}</span></div>`);
-    if (s.booking) rows.push(`<div class="info-row">${icon("ticket")}<span><small>Booking</small>${s.booking === "booked" ? "Booked ✓" : "Book ahead"}</span></div>`);
-    if (s.via) rows.push(`<div class="info-row">${icon("walk")}<span><small>Getting there</small>${esc(s.via)}</span></div>`);
-    if (safeLink(s.link)) rows.push(`<a class="info-row" href="${esc(s.link)}" target="_blank" rel="noopener">${icon("external")}<span><small>Website</small>${esc(s.link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</span>${icon("external", "end")}</a>`);
+  function daySection(d, idx) {
+    const n = nowIn(TZ);
+    const rUrl = routeUrl(d);
+    const stay = stayOf(d);
+    const stops = stopsOf(d);
+    let html = `<section class="day-section city-${esc(d.city)} ${d.date === n.date ? "is-today" : ""}" id="day-${esc(d.id)}" data-day="${esc(d.id)}">
+      <header class="day-banner">
+        ${cityArt(d)}
+        <div class="day-banner-text">
+          <p class="eyebrow">Day ${idx + 1} · ${d.date ? fmtDate(d.date, { weekday: "long", month: "long", day: "numeric" }) : "Dates to come"}${d.date === n.date ? ' · <span class="today-tag">Today</span>' : ""}</p>
+          <h2>${esc(d.title)}</h2>
+          ${d.route ? `<p class="route-chip">${icon("route")} ${esc(d.route)}</p>` : ""}
+        </div>
+      </header>`;
+    if (d.summary) html += `<p class="lede">${esc(d.summary)}</p>`;
 
-    return `<div class="sheet-head cat-${esc(s.cat)}">
-        <span class="bubble">${icon(c.icon)}</span>
-        <div class="sheet-head-text"><p class="eyebrow">${esc(c.label)} · ${esc(dayLabel(d))}${s.time ? " · " + fmtRange(s) : ""}</p></div>
-        <button class="icon-btn" data-act="close-sheet" aria-label="Close">${icon("x")}</button>
+    const facts = [];
+    if (stay && stay.place) facts.push(`<a class="day-fact" href="${mapsUrl(stay.place)}" target="_blank" rel="noopener">${icon("bed")}<span><small>Staying at</small>${esc(stay.place)}</span>${icon("external", "end")}</a>`);
+    if (rUrl) facts.push(`<a class="day-fact" href="${rUrl}" target="_blank" rel="noopener">${icon("map")}<span><small>Today's route</small>Open every stop in Google Maps</span>${icon("external", "end")}</a>`);
+    if (S.editing) facts.push(`<button class="day-fact" data-act="edit" data-type="day" data-id="${esc(d.id)}">${icon("pencil")}<span><small>Editing</small>Edit this day's title, date & notes</span></button>`);
+    if (facts.length) html += `<div class="day-facts">${facts.join("")}</div>`;
+
+    if (d.notes.length) html += `<div class="callout">${icon("bell")}<div><h3>Heads up</h3><ul>${d.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>`;
+
+    html += `<ol class="timeline">`;
+    stops.forEach((s, i) => {
+      if (i > 0 && s.via) html += `<li class="via">${icon("walk")}<span>${esc(s.via)}</span></li>`;
+      html += stopCard(d, s);
+    });
+    html += `</ol>`;
+    if (!stops.length) html += `<div class="empty soft">${icon("sparkle")}<p>Nothing planned here yet.</p>${S.trip.guides[d.city] ? `<a class="btn ghost sm" href="#/guide/${esc(d.city)}">Browse the ${esc(CITIES[d.city]?.name || "")} guide</a>` : ""}</div>`;
+    if (S.editing) html += `<button class="add-row" data-act="add-stop" data-day="${esc(d.id)}">${icon("plus")} Add a stop to ${esc(dayLabel(d))}</button>`;
+    return html + `</section>`;
+  }
+
+  function stopCard(d, s) {
+    const c = CATS[s.cat] || CATS.free;
+    const state = stopState(d, s);
+    const chips = [];
+    if (s.address) chips.push(`<a class="meta" href="${mapsUrl(s.address)}" target="_blank" rel="noopener">${icon("pin")}<span>${esc(s.address.replace(/,\s*(Toronto|New York|Brooklyn|Queens)(,.*)?$/i, ""))}</span></a>`);
+    if (s.hours) chips.push(`<span class="meta">${icon("clock")}<span>${esc(s.hours)}</span></span>`);
+    if (s.cost) chips.push(`<span class="meta">${icon("dollar")}<span>${esc(s.cost)}</span></span>`);
+    if (s.booking === "book") chips.push(`<span class="meta warn">${icon("ticket")}<span>Book ahead</span></span>`);
+    if (s.booking === "booked") chips.push(`<span class="meta ok">${icon("check")}<span>Booked</span></span>`);
+    if (safeLink(s.link)) chips.push(`<a class="meta" href="${esc(s.link)}" target="_blank" rel="noopener">${icon("external")}<span>${esc(s.link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</span></a>`);
+    const edit = S.editing ? ` data-act="edit" data-type="stop" data-id="${esc(s.id)}" role="button" tabindex="0"` : "";
+    return `<li class="stop ${state} cat-${esc(s.cat)}" id="stop-${esc(s.id)}">
+      <div class="stop-time">${s.time ? `<b>${fmtTime(s.time)}</b>${s.end ? `<span>to ${fmtTime(s.end)}</span>` : ""}` : ""}</div>
+      <div class="stop-rail"><span class="bubble">${icon(c.icon)}</span></div>
+      <div class="stop-body ${S.editing ? "editable" : ""}"${edit}>
+        ${s.time ? `<p class="stop-when">${fmtRange(s)}</p>` : ""}
+        <p class="eyebrow">${esc(c.label)}${s.area ? " · " + esc(s.area) : ""}${state === "current" ? ' · <span class="live-tag">Now</span>' : ""}</p>
+        <h3>${esc(s.title)}${S.editing ? icon("pencil", "edit-ic") : ""}</h3>
+        ${s.reminder ? `<p class="stop-reminder">${icon("bell")}<span>${esc(s.reminder)}</span></p>` : ""}
+        ${s.desc ? `<p class="stop-desc detail">${esc(s.desc)}</p>` : ""}
+        ${s.tips.length ? `<ul class="stop-tips detail">${s.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+        ${chips.length ? `<div class="metas">${chips.join("")}</div>` : ""}
+        ${s.nearby.length ? `<p class="stop-nearby detail"><b>Nearby:</b> ${s.nearby.map((x) => `<a href="${mapsUrl(x.title + (CITIES[d.city] ? ", " + CITIES[d.city].name : ""))}" target="_blank" rel="noopener">${esc(x.title)}</a>${x.note ? ` (${esc(x.note)})` : ""}`).join(" · ")}</p>` : ""}
       </div>
-      <div class="sheet-body">
-        <h2 class="sheet-title">${esc(s.title)}</h2>
-        ${s.area ? `<p class="muted">${esc(s.area)}</p>` : ""}
-        ${s.reminder ? `<div class="callout small">${icon("bell")}<p>${esc(s.reminder)}</p></div>` : ""}
-        ${s.desc ? `<p class="prose">${esc(s.desc)}</p>` : ""}
-        ${s.tips.length ? `<h3 class="sub">Tour guide tips</h3><ul class="tips">${s.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
-        ${rows.length ? `<div class="info-rows">${rows.join("")}</div>` : ""}
-        ${s.nearby.length ? `<h3 class="sub">Nearby</h3><div class="nearby">${s.nearby.map((x) =>
-          `<a class="nearby-item" href="${mapsUrl(x.title + (CITIES[d.city] ? ", " + CITIES[d.city].name : ""))}" target="_blank" rel="noopener"><b>${esc(x.title)}</b>${x.note ? `<span>${esc(x.note)}</span>` : ""}</a>`).join("")}</div>` : ""}
-      </div>
-      <div class="sheet-foot">
-        ${prev ? `<a class="btn ghost" href="${planHref(d, prev)}" data-replace>${icon("left")} ${esc(prev.title)}</a>` : "<span></span>"}
-        <button class="btn ghost icon-only" data-act="edit" data-type="stop" data-id="${esc(s.id)}" aria-label="Edit this stop">${icon("pencil")}</button>
-        ${next ? `<a class="btn ghost next" href="${planHref(d, next)}" data-replace>${esc(next.title)} ${icon("right")}</a>` : "<span></span>"}
-      </div>`;
+    </li>`;
   }
 
   // ===================================================================
@@ -686,6 +743,15 @@
     html += `<section class="day-hero city-${esc(cityId)}">${art(cityId)}<div class="day-hero-text">
       <p class="eyebrow">City guide</p><h1>${esc(g.name)}</h1>${g.tagline ? `<p class="hero-sub">${esc(g.tagline)}</p>` : ""}</div></section>`;
 
+    if (g.base) {
+      html += `<section class="card stay-card">
+        <div class="stay-top"><span class="bubble cat-stay">${icon("bed")}</span>
+          <div><p class="eyebrow">Where you're staying</p><h3>${esc(g.base.title)}</h3><p class="stay-addr">${esc(g.base.address)}</p></div></div>
+        ${g.base.points && g.base.points.length ? `<ul class="base-points">${g.base.points.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+        <div class="stay-actions"><a class="btn ghost sm" href="${mapsUrl(g.base.address)}" target="_blank" rel="noopener">${icon("pin")} Map</a>
+          <a class="btn primary sm" href="${dirUrl(g.base.address)}" target="_blank" rel="noopener">${icon("route")} Directions</a></div>
+      </section>`;
+    }
     html += `<section class="facts">${g.facts.map((f) =>
       `<${S.editing ? `button data-act="edit" data-type="fact" data-id="${esc(f.id)}"` : "div"} class="fact"><small>${esc(f.label)}</small><b>${esc(f.value)}</b></${S.editing ? "button" : "div"}>`).join("")}
       ${S.editing ? `<button class="fact add" data-act="add-fact" data-city="${esc(cityId)}">${icon("plus")} Add</button>` : ""}</section>`;
@@ -1010,9 +1076,6 @@
     if (S.sheet) {
       kind = S.sheet.type;
       html = kind === "editor" ? editorSheet(S.sheet) : kind === "publish" ? publishSheet(S.sheet) : kind === "password" ? passwordSheet(S.sheet) : "";
-    } else if (S.route.tab === "plan" && S.route.stop) {
-      const f = findStop(S.route.stop);
-      if (f) { kind = "stop:" + f.stop.id; html = stopSheet(f); }
     }
     if (!html) {
       if (!root.hidden) {
@@ -1040,11 +1103,6 @@
       S.sheet = null;
       renderMain();
       renderSheet();
-      return;
-    }
-    if (S.route.tab === "plan" && S.route.stop) {
-      if (internalNav && history.length > 1) history.back();
-      else location.hash = "#/plan/" + encodeURIComponent(S.route.day);
     }
   }
 
@@ -1184,26 +1242,37 @@
     const act = a.dataset.act;
     const ds = a.dataset;
 
-    if (act === "open-stop") {
-      if (S.editing) { e.preventDefault(); openSheet({ type: "editor", etype: "stop", id: ds.id }); }
-      else internalNav = true;
-      return;
-    }
     e.preventDefault();
     switch (act) {
       case "close-sheet": closeSheet(); break;
       case "toggle-edit":
         S.editing = !S.editing;
         S.sheet = null;
-        if (S.editing && S.route.stop) { const f = findStop(S.route.stop); location.replace(planHref(f ? f.day : dayById(S.route.day))); }
         render(true);
         if (!S.editing && S.dirty) toast("Saved on this device. Publish when you're ready.");
         break;
       case "edit":
         if (!S.editing) { S.editing = true; renderChrome(); renderMain(); }
-        if (ds.type === "stop" && S.route.stop) location.replace(planHref(findStop(ds.id).day));
         openSheet({ type: "editor", etype: ds.type, id: ds.id });
         break;
+      case "jump": {
+        const d = dayById(ds.day);
+        if (!d) break;
+        history.replaceState(null, "", planHref(d));
+        S.route = parseHash();
+        S.scrollTarget = d.id + "/";
+        scrollToEl(document.getElementById("day-" + d.id), true);
+        break;
+      }
+      case "density": {
+        const compact = ds.val === "compact";
+        save("trip-density", ds.val);
+        const anchor = document.getElementById("day-" + activeDayId);
+        $(".days").classList.toggle("compact", compact);
+        a.parentElement.querySelectorAll("button").forEach((b) => { const on = b === a; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+        if (anchor) scrollToEl(anchor, false);
+        break;
+      }
       case "add": addItem(ds.type, {}); break;
       case "add-stop": addItem("stop", { day: ds.day }); break;
       case "add-day": addItem("day", {}); break;
