@@ -547,3 +547,24 @@ body:not(.locked) .view .editable:hover { outline-color: var(--line); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ============ Photos ============ */
+.art.photo { object-fit: cover; }
+.hero img.photo, .day-hero img.photo, .day-banner img.photo { z-index: 0; animation: fadein .5s ease; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.stop-body.has-photo { padding-top: 0; overflow: hidden; }
+.stop-photo { margin: 0 -15px 11px; aspect-ratio: 16 / 9; background: var(--surface-2); overflow: hidden; }
+.stop-photo img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fadein .4s ease; }
+.days.compact .stop-body.has-photo { padding-top: 10px; }
+.credits summary { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; list-style: none; }
+.credits summary::-webkit-details-marker { display: none; }
+.credits summary .ic { color: var(--accent); }
+.credits ul { margin-top: 10px; display: grid; gap: 4px; font-size: .78rem; color: var(--muted); }
+.credits a { color: var(--accent); }
+.gi-thumb { width: 56px; height: 56px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: var(--surface-2); }
+.gi-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hero:has(img.photo)::after, .day-hero:has(img.photo)::after, .day-banner:has(img.photo)::after {
+  background: linear-gradient(180deg, rgba(10,6,2,.15) 0%, rgba(10,6,2,.2) 35%, rgba(10,6,2,.78) 100%);
+}
+.hero:has(img.photo), .day-hero:has(img.photo) { min-height: 240px; }
+.day-banner:has(img.photo) { min-height: 190px; }

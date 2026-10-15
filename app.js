@@ -188,6 +188,11 @@
     </svg>`;
   }
   const cityArt = (day) => art(day && day.city === "home" ? "home" : day ? day.city : "travel");
+  // A real photo layered over the drawn skyline; if the photo fails to load, the drawing shows through.
+  const photoImg = (src, cls = "photo", eager = false) => (safeLink(src)
+    ? `<img class="${cls}" src="${esc(src)}" alt="" ${eager ? "" : 'loading="lazy"'} decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">`
+    : "");
+  const bannerArt = (fallback, photo, eager) => fallback + photoImg(photo, "art photo", eager);
 
   // ===================================================================
   // Encryption (PBKDF2-SHA256 → AES-256-GCM; same as tools/encrypt.mjs)
@@ -538,7 +543,7 @@
     }
     const heroDay = today || (first && n.date < first.date ? first : all.find((d) => !d.date) || last);
     html += `<section class="hero">
-      ${cityArt(heroDay)}
+      ${bannerArt(cityArt(heroDay), heroDay && heroDay.photo, true)}
       <div class="hero-text">
         <p class="eyebrow">${greeting(n.hour)} · ${fmtDate(n.date, { weekday: "long", month: "short", day: "numeric" })}</p>
         <h1>${hero}</h1>
@@ -676,7 +681,7 @@
     const stops = stopsOf(d);
     let html = `<section class="day-section city-${esc(d.city)} ${d.date === n.date ? "is-today" : ""}" id="day-${esc(d.id)}" data-day="${esc(d.id)}">
       <header class="day-banner">
-        ${cityArt(d)}
+        ${bannerArt(cityArt(d), d.photo, idx < 2)}
         <div class="day-banner-text">
           <p class="eyebrow">Day ${idx + 1} · ${d.date ? fmtDate(d.date, { weekday: "long", month: "long", day: "numeric" }) : "Dates to come"}${d.date === n.date ? ' · <span class="today-tag">Today</span>' : ""}</p>
           <h2>${esc(d.title)}</h2>
@@ -718,7 +723,8 @@
     return `<li class="stop ${state} cat-${esc(s.cat)}" id="stop-${esc(s.id)}">
       <div class="stop-time">${s.time ? `<b>${fmtTime(s.time)}</b>${s.end ? `<span>to ${fmtTime(s.end)}</span>` : ""}` : ""}</div>
       <div class="stop-rail"><span class="bubble">${icon(c.icon)}</span></div>
-      <div class="stop-body ${S.editing ? "editable" : ""}"${edit}>
+      <div class="stop-body ${S.editing ? "editable" : ""} ${safeLink(s.photo) ? "has-photo" : ""}"${edit}>
+        ${safeLink(s.photo) ? `<figure class="stop-photo detail">${photoImg(s.photo)}</figure>` : ""}
         ${s.time ? `<p class="stop-when">${fmtRange(s)}</p>` : ""}
         <p class="eyebrow">${esc(c.label)}${s.area ? " · " + esc(s.area) : ""}${state === "current" ? ' · <span class="live-tag">Now</span>' : ""}</p>
         <h3>${esc(s.title)}${S.editing ? icon("pencil", "edit-ic") : ""}</h3>
@@ -741,7 +747,7 @@
       `<a href="#/guide/${esc(k)}" class="${k === cityId ? "active" : ""}">${esc(S.trip.guides[k].name || k)}</a>`).join("")}</nav>`;
     if (!g) return html + `<div class="empty">No guide for this city yet.</div>`;
 
-    html += `<section class="day-hero city-${esc(cityId)}">${art(cityId)}<div class="day-hero-text">
+    html += `<section class="day-hero city-${esc(cityId)}">${bannerArt(art(cityId), g.photo, true)}<div class="day-hero-text">
       <p class="eyebrow">City guide</p><h1>${esc(g.name)}</h1>${g.tagline ? `<p class="hero-sub">${esc(g.tagline)}</p>` : ""}</div></section>`;
 
     if (g.base) {
@@ -767,7 +773,8 @@
         if (S.editing) {
           html += `<li><button class="gi editable" data-act="edit" data-type="guideItem" data-id="${esc(it.id)}">${inner}${icon("pencil", "end")}</button></li>`;
         } else {
-          html += `<li><div class="gi">${inner}${place ? `<a class="map-btn" href="${mapsUrl(place)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.title)} in Maps">${icon("pin")}</a>` : ""}</div></li>`;
+          const thumb = linked && safeLink(linked.stop.photo) ? `<span class="gi-thumb">${photoImg(linked.stop.photo.replace("/960px-", "/330px-"))}</span>` : "";
+          html += `<li><div class="gi">${thumb}${inner}${place ? `<a class="map-btn" href="${mapsUrl(place)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.title)} in Maps">${icon("pin")}</a>` : ""}</div></li>`;
         }
       });
       html += `</ul>${S.editing ? `<button class="add-row inline" data-act="add-guide-item" data-city="${esc(cityId)}" data-sec="${esc(sec.id)}">${icon("plus")} Add to ${esc(sec.title)}</button>` : ""}</section>`;
@@ -832,6 +839,11 @@
       `<${S.editing ? `button data-act="edit" data-type="note" data-id="${esc(x.id)}"` : "div"} class="note-card ${S.editing ? "editable" : ""}"><b>${esc(x.title)}</b><p>${esc(x.body)}</p></${S.editing ? "button" : "div"}>`).join("")}</div>
       ${S.editing ? `<button class="add-row inline" data-act="add" data-type="note">${icon("plus")} Add a note</button>` : `<button class="add-row inline" data-act="quick-note">${icon("plus")} Add a note</button>`}</section>`;
 
+    if (t.photoCredits && t.photoCredits.length) {
+      html += `<details class="card credits"><summary>${icon("camera")} Photo credits</summary><p class="muted">Photos from Wikimedia Commons.</p>
+        <ul>${t.photoCredits.map((c) => `<li>${safeLink(c.page) ? `<a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.label)}</a>` : esc(c.label)}: ${esc(c.credit)}</li>`).join("")}</ul></details>`;
+    }
+
     const tokenOn = !!load(KEYS.token);
     html += `<section class="card settings"><h2 class="card-title">${icon("key")} Edit & share</h2>
       <button class="setting" data-act="toggle-edit">${icon("pencil")}<span><b>${S.editing ? "Finish editing" : "Edit the trip"}</b><small>Change anything: stops, guides, bookings, notes.</small></span>${icon("right", "end")}</button>
@@ -883,6 +895,7 @@
       { k: "via", label: "Getting there", type: "text", ph: "e.g. 10-min walk · Line 1 north" },
       { k: "link", label: "Website or booking link", type: "url", ph: "https://" },
       { k: "nearby", label: "Nearby ideas", type: "pairs", ph: "Name — short note (one per line)" },
+      { k: "photo", label: "Photo link", type: "url", ph: "https://… (any image address)" },
       { k: "_day", label: "Day", type: "day" }
     ]},
     day: { title: "Day", fields: [
@@ -891,6 +904,7 @@
       { k: "route", label: "Route label", type: "text", ph: "e.g. Toronto → New York" },
       { k: "summary", label: "Summary", type: "textarea" },
       { k: "notes", label: "Heads-up notes", type: "lines", ph: "One per line, shown at the top of the day and on Today" },
+      { k: "photo", label: "Banner photo link", type: "url", ph: "https://… (any image address)" },
       { k: "event", label: "Event day", type: "toggle" }
     ]},
     booking: { title: "Booking", fields: [
