@@ -1,31 +1,33 @@
-# Trip Itinerary
+# Trip Guide
 
-A password-protected itinerary page for GitHub Pages. There's no build step.
+A password-protected personal trip guide for GitHub Pages. There's no build step.
 
-The itinerary is stored **encrypted** in `trip-data.enc.js` (AES-256-GCM, with the key derived from the trip password). The repo and the site are public, but without the password they show only a lock screen and scrambled data.
+The trip is stored **encrypted** in `trip-data.enc.js` (AES-256-GCM, with the key derived from the trip password). The repo and site are public, but without the password they show only a lock screen.
+
+## What's in it
+- **Today**: what's happening now and next, local and Vancouver time, reminders, today's plan, tomorrow's preview, to-dos and anything still missing.
+- **Plan**: a day strip covering the whole trip, a timeline for each day with how to get between stops, and a detail sheet for every stop (tips, address → Maps, hours, cost, booking, nearby).
+- **Guide**: city guides with quick facts, must-sees (linked to your plan), food, neighbourhoods, getting around, good-to-knows, Made Theory inspiration and "your places".
+- **Trip**: the route, bookings, contacts (call, text or email), the checklist, notes and settings.
+
+## Editing
+Tap **Edit** (top right) and tap anything to change it. Each item opens a form, and edits save on that device as you type. Use **+ Add** rows to add stops, days, bookings, contacts, tasks, notes and guide items.
+
+## Publishing
+Tap **Publish**.
+- **One-tap (recommended):** connect GitHub once with a fine-grained token that has *Contents: Read and write* access to this repo only. The page walks you through it. After that, Publish encrypts and commits `trip-data.enc.js` for you.
+- **Manual:** download the file, then on GitHub use *Add file → Upload files* and commit.
 
 ## Files
-- `trip-data.enc.js`: the encrypted itinerary (days, stops, key info, checklist, tips).
-- `index.html`, `app.js`, `styles.css`: the page and lock screen.
-- `tools/encrypt.mjs`: encrypts a plaintext `trip-data.js` from the command line (optional).
-
-## Revising the plan
-1. Open the site, unlock it and tap **Edit**. Changes save on that device right away.
-2. Tap **⋯ → Export for GitHub**. This downloads a new `trip-data.enc.js`, encrypted with the same password.
-3. In the repo on GitHub: **Add file → Upload files**, drop in `trip-data.enc.js` and commit. The site updates in about a minute.
-
-## Other menu items
-- **Change password**: re-encrypts with a new password and downloads `trip-data.enc.js`. Upload it to make the change live, then share the new password.
-- **Discard local edits**: goes back to the published version.
-- **Lock this device**: forgets the saved password on this device.
-
-## From the command line (optional)
-```bash
-TRIP_PASSWORD='the password' node tools/encrypt.mjs trip-data.js > trip-data.enc.js
-```
-`trip-data.js` (plaintext) is git-ignored, so it never gets committed.
+- `trip-data.enc.js`: the encrypted trip.
+- `index.html`, `app.js`, `styles.css`: the app.
+- `tools/encrypt.mjs`: encrypts a plaintext `trip-data.js` from the command line:
+  ```bash
+  TRIP_PASSWORD='the password' node tools/encrypt.mjs trip-data.js > trip-data.enc.js
+  ```
+  `trip-data.js` (plaintext) is git-ignored, so it never gets committed.
 
 ## Notes
 - Anyone with the password can read everything, so share it like a door code.
-- Edits you haven't exported live in that browser's storage only.
+- The GitHub token and saved password live only in that browser's storage. Use **Trip → Lock this device** to forget the password.
 - The page has `noindex` set, so search engines won't list it.

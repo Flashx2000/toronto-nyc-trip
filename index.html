@@ -2,60 +2,53 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
-  <meta name="robots" content="noindex">
-  <title>Trip Itinerary</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Trip Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="locked">
   <div id="lock" class="lock" hidden>
-    <form id="lockForm" class="lock-card">
-      <h1>Trip itinerary</h1>
-      <p class="muted">Enter the trip password.</p>
-      <input id="lockPass" type="password" autocomplete="current-password" aria-label="Password" required>
-      <label class="remember"><input id="lockRemember" type="checkbox" checked> Remember on this device</label>
+    <form id="lockForm" class="lock-card" autocomplete="on">
+      <div id="lockArt" class="lock-art" aria-hidden="true"></div>
+      <h1>Your trip guide</h1>
+      <p class="muted">Enter the trip password to unlock.</p>
+      <input id="lockPass" type="password" autocomplete="current-password" aria-label="Password" placeholder="Password" required>
+      <label class="check-row"><input id="lockRemember" type="checkbox" checked> Remember on this device</label>
       <p id="lockError" class="lock-error" role="alert"></p>
-      <button id="lockSubmit" type="submit" class="primary">Unlock</button>
+      <button id="lockSubmit" type="submit" class="btn primary block">Unlock</button>
     </form>
   </div>
 
-  <header class="top">
-    <div class="wrap top-row">
-      <div>
-        <h1 id="title"></h1>
-        <p id="subtitle" class="muted"></p>
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#/today">
+          <span class="brand-route" id="brandRoute"></span>
+          <span class="brand-title" id="brandTitle"></span>
+        </a>
+        <div class="top-actions" id="topActions"></div>
       </div>
-      <div class="actions">
-        <button id="editBtn" type="button">Edit</button>
-        <button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More">⋯</button>
-        <div id="menu" class="menu" hidden>
-          <button id="exportBtn" type="button">Export for GitHub</button>
-          <button id="importBtn" type="button">Import file…</button>
-          <button id="changePassBtn" type="button">Change password</button>
-          <button id="resetBtn" type="button">Discard local edits</button>
-          <button id="lockBtn" type="button">Lock this device</button>
-        </div>
-        <input id="importFile" type="file" accept=".js,.json,application/json,text/javascript" hidden>
-      </div>
-    </div>
-    <nav id="dayNav" class="wrap day-nav" aria-label="Days"></nav>
-  </header>
+      <div id="editBar" class="edit-bar" hidden></div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+    <nav class="tabbar" id="tabbar" aria-label="Sections"></nav>
+  </div>
 
-  <main class="wrap">
-    <div id="localNotice" class="notice" hidden>
-      Edits are saved on this device only. <button type="button" class="link" id="noticeExport">Export</button> and upload the file to the repo to publish them.
-    </div>
-    <section id="now" class="now" hidden></section>
-    <section id="keyInfo" class="key-info"></section>
-    <div id="days"></div>
-    <section id="checklistSection" class="card">
-      <h2>Checklist</h2>
-      <ul id="checklist" class="checklist"></ul>
-    </section>
-    <div id="tips"></div>
-  </main>
+  <div id="sheetRoot" class="sheet-root" hidden>
+    <div class="sheet-backdrop" data-act="close-sheet"></div>
+    <section class="sheet" id="sheet" role="dialog" aria-modal="true"></section>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input id="importFile" type="file" accept=".js,.json,application/json,text/javascript" hidden>
 
-  <script src="trip-data.enc.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

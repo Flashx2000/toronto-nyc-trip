@@ -3,6 +3,7 @@
 // Uses the same format the page decrypts: PBKDF2-SHA256 -> AES-256-GCM.
 import { readFileSync } from "node:fs";
 import { webcrypto as crypto } from "node:crypto";
+import vm from "node:vm";
 
 const ITERATIONS = 310000;
 const [, , input] = process.argv;
@@ -12,8 +13,14 @@ if (!input || !password) {
   process.exit(1);
 }
 
-const text = readFileSync(input, "utf8");
-const data = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+// trip-data.js sets window.TRIP; run it in a sandbox to read the object.
+const sandbox = { window: {} };
+vm.runInNewContext(readFileSync(input, "utf8"), sandbox);
+const data = sandbox.window.TRIP;
+if (!data || !Array.isArray(data.days)) {
+  console.error("No window.TRIP with days found in " + input);
+  process.exit(1);
+}
 
 const enc = new TextEncoder();
 const salt = crypto.getRandomValues(new Uint8Array(16));
