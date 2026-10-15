@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
+  <meta name="robots" content="noindex">
+  <title>Trip Itinerary</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="locked">
+  <div id="lock" class="lock" hidden>
+    <form id="lockForm" class="lock-card">
+      <h1>Trip itinerary</h1>
+      <p class="muted">Enter the trip password.</p>
+      <input id="lockPass" type="password" autocomplete="current-password" aria-label="Password" required>
+      <label class="remember"><input id="lockRemember" type="checkbox" checked> Remember on this device</label>
+      <p id="lockError" class="lock-error" role="alert"></p>
+      <button id="lockSubmit" type="submit" class="primary">Unlock</button>
+    </form>
+  </div>
+
+  <header class="top">
+    <div class="wrap top-row">
+      <div>
+        <h1 id="title"></h1>
+        <p id="subtitle" class="muted"></p>
+      </div>
+      <div class="actions">
+        <button id="editBtn" type="button">Edit</button>
+        <button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More">⋯</button>
+        <div id="menu" class="menu" hidden>
+          <button id="exportBtn" type="button">Export for GitHub</button>
+          <button id="importBtn" type="button">Import file…</button>
+          <button id="changePassBtn" type="button">Change password</button>
+          <button id="resetBtn" type="button">Discard local edits</button>
+          <button id="lockBtn" type="button">Lock this device</button>
+        </div>
+        <input id="importFile" type="file" accept=".js,.json,application/json,text/javascript" hidden>
+      </div>
+    </div>
+    <nav id="dayNav" class="wrap day-nav" aria-label="Days"></nav>
+  </header>
+
+  <main class="wrap">
+    <div id="localNotice" class="notice" hidden>
+      Edits are saved on this device only. <button type="button" class="link" id="noticeExport">Export</button> and upload the file to the repo to publish them.
+    </div>
+    <section id="now" class="now" hidden></section>
+    <section id="keyInfo" class="key-info"></section>
+    <div id="days"></div>
+    <section id="checklistSection" class="card">
+      <h2>Checklist</h2>
+      <ul id="checklist" class="checklist"></ul>
+    </section>
+    <div id="tips"></div>
+  </main>
+
+  <script src="trip-data.enc.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
