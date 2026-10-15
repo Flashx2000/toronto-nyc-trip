@@ -8,7 +8,8 @@
     draft: "trip-draft-v2",
     checks: "trip-checks-v2",
     pass: "trip-pass-v1",
-    token: "trip-gh-token-v1"
+    token: "trip-gh-token-v1",
+    lockout: "trip-lockout-v1"
   };
   const TZ = "America/Toronto";
   const HOME_TZ = "America/Vancouver";
@@ -1487,6 +1488,7 @@
     $("#lock").hidden = false;
     $("#lockArt").innerHTML = art("toronto");
     $("#lockError").textContent = msg || "";
+    if (lockedUntil()) { showCooldown(); return; }
     setTimeout(() => $("#lockPass").focus(), 50);
   }
   async function unlock(pw, remember) {
@@ -1496,15 +1498,54 @@
     start(data);
   }
 
+  // Lock screen: 5 wrong tries locks this device for 15 minutes.
+  const MAX_TRIES = 5;
+  const LOCK_MS = 15 * 60 * 1000;
+  let lockTimer = null;
+  function lockedUntil() {
+    const l = load(KEYS.lockout);
+    return l && l.until && l.until > Date.now() ? l.until : 0;
+  }
+  function showCooldown() {
+    const until = lockedUntil();
+    const btn = $("#lockSubmit"), input = $("#lockPass");
+    clearInterval(lockTimer);
+    if (!until) { btn.disabled = false; input.disabled = false; btn.textContent = "Unlock"; return; }
+    btn.disabled = true;
+    input.disabled = true;
+    const tick = () => {
+      const left = lockedUntil() - Date.now();
+      if (left <= 0) { clearInterval(lockTimer); $("#lockError").textContent = ""; showCooldown(); input.focus(); return; }
+      const m = Math.floor(left / 60000), sec = Math.ceil((left % 60000) / 1000);
+      btn.textContent = `Try again in ${m}:${String(sec).padStart(2, "0")}`;
+      $("#lockError").textContent = "Too many wrong tries. This device is locked for 15 minutes.";
+    };
+    tick();
+    lockTimer = setInterval(tick, 1000);
+  }
+
   $("#lockForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (lockedUntil()) { showCooldown(); return; }
     const btn = $("#lockSubmit");
     btn.disabled = true;
     btn.textContent = "Unlocking…";
     try {
       await unlock($("#lockPass").value, $("#lockRemember").checked);
+      drop(KEYS.lockout);
     } catch (err) {
-      showLock("That password didn't work.");
+      const l = load(KEYS.lockout) || { fails: 0 };
+      l.fails = (l.fails || 0) + 1;
+      if (l.fails >= MAX_TRIES) {
+        save(KEYS.lockout, { fails: 0, until: Date.now() + LOCK_MS });
+        showLock("");
+        showCooldown();
+        return;
+      }
+      save(KEYS.lockout, l);
+      const left = MAX_TRIES - l.fails;
+      showLock(`That password didn't work. ${left} ${left === 1 ? "try" : "tries"} left.`);
+      $("#lockPass").select();
     }
     btn.disabled = false;
     btn.textContent = "Unlock";
