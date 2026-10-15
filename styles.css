@@ -123,8 +123,7 @@ textarea { resize: vertical; line-height: 1.45; }
 /* ============ App shell ============ */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  background: var(--bg);
   padding-top: env(safe-area-inset-top);
 }
 .topbar-inner { max-width: 720px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -227,11 +226,11 @@ h3.sub { font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; co
 .quick-btn .ic { width: 22px; height: 22px; color: var(--accent); }
 
 /* ============ Plan ============ */
-.day-strip { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 6px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding: 0 16px; }
+.day-strip { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 6px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; overscroll-behavior-x: contain; }
 .day-strip::-webkit-scrollbar { display: none; }
 .chip-day {
   flex-shrink: 0; width: 56px; height: 60px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow);
-  display: grid; place-items: center; align-content: center; gap: 0; position: relative; scroll-snap-align: start;
+  display: grid; place-items: center; align-content: center; gap: 0; position: relative;
 }
 .chip-day .dw { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
 .chip-day .dn { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
@@ -325,7 +324,7 @@ a.meta { color: var(--accent); }
 /* Plan: sticky jump bar + day sections */
 .plan-toolbar {
   position: sticky; top: var(--top-h, 60px); z-index: 15; margin: -8px -16px 0; padding: 0 16px 8px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .plan-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: .85rem; }
@@ -550,11 +549,11 @@ body:not(.locked) .view .editable:hover { outline-color: var(--line); }
 
 /* ============ Photos ============ */
 .art.photo { object-fit: cover; }
-.hero img.photo, .day-hero img.photo, .day-banner img.photo { z-index: 0; animation: fadein .5s ease; }
+.hero img.photo, .day-hero img.photo, .day-banner img.photo { z-index: 0; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 .stop-body.has-photo { padding-top: 0; overflow: hidden; }
 .stop-photo { margin: 0 -15px 11px; aspect-ratio: 16 / 9; background: var(--surface-2); overflow: hidden; }
-.stop-photo img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fadein .4s ease; }
+.stop-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .days.compact .stop-body.has-photo { padding-top: 10px; }
 .credits summary { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; list-style: none; }
 .credits summary::-webkit-details-marker { display: none; }
@@ -568,3 +567,11 @@ body:not(.locked) .view .editable:hover { outline-color: var(--line); }
 }
 .hero:has(img.photo), .day-hero:has(img.photo) { min-height: 240px; }
 .day-banner:has(img.photo) { min-height: 190px; }
+
+/* ============ Mobile zoom lock ============ */
+html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* No rubber-band bounce: keeps the pinned header and tab bar still. */
+html, body { overscroll-behavior: none; }
+a, button, label, input, select, textarea, summary { touch-action: manipulation; }
+/* iOS zooms into any field with text under 16px, so keep fields at 16px. */
+input, select, textarea { font-size: 16px !important; }

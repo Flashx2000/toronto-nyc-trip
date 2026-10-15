@@ -462,7 +462,9 @@
     if (!strip) return;
     strip.querySelectorAll(".chip-day").forEach((c) => c.classList.toggle("active", c.dataset.day === id));
     const chip = strip.querySelector(`.chip-day[data-day="${CSS.escape(id)}"]`);
-    if (chip) strip.scrollTo({ left: chip.offsetLeft - strip.clientWidth / 2 + chip.offsetWidth / 2, behavior: force ? "auto" : "smooth" });
+    if (!chip) return;
+    const left = chip.offsetLeft - strip.scrollLeft, right = left + chip.offsetWidth;
+    if (force || left < 0 || right > strip.clientWidth) strip.scrollLeft = chip.offsetLeft - strip.clientWidth / 2 + chip.offsetWidth / 2;
   }
   let scrollTick = false;
   window.addEventListener("scroll", () => {
@@ -632,7 +634,7 @@
   }
   function miniStop(d, s) {
     const c = CATS[s.cat] || CATS.free;
-    return `<li class="${stopState(d, s)}"><a href="${planHref(d, s)}"><span class="t">${fmtTime(s.time) || "·"}</span><span class="bubble sm cat-${esc(s.cat)}">${icon(c.icon)}</span><span class="n">${esc(s.title)}${s.area ? `<small>${esc(s.area)}${s.via ? " · " + esc(s.via) : ""}</small>` : ""}</span></a></li>`;
+    return `<li class="${stopState(d, s)}" data-stop="${esc(s.id)}"><a href="${planHref(d, s)}"><span class="t">${fmtTime(s.time) || "·"}</span><span class="bubble sm cat-${esc(s.cat)}">${icon(c.icon)}</span><span class="n">${esc(s.title)}${s.area ? `<small>${esc(s.area)}${s.via ? " · " + esc(s.via) : ""}</small>` : ""}</span></a></li>`;
   }
   function remindersFor(d) {
     const out = d.notes.map(esc);
@@ -1476,10 +1478,36 @@
     $("#lock").hidden = true;
     $("#app").hidden = false;
     render(true);
-    setInterval(() => {
-      if (S.sheet && S.sheet.type === "editor") return;
-      if (S.route.tab === "today" || S.route.tab === "plan") { renderMain(); }
-    }, 60000);
+    setInterval(refreshLive, 60000);
+  }
+
+  // Once a minute, update clocks and past/now/next markers in place. Rebuilding the
+  // page here would make it jump and re-fade the photos while you're scrolling.
+  function refreshLive() {
+    if (!S.trip || (S.sheet && S.sheet.type === "editor")) return;
+    if (S.route.tab === "plan") {
+      document.querySelectorAll(".stop[id^='stop-']").forEach((el) => {
+        const f = findStop(el.id.slice(5));
+        if (!f) return;
+        const st = stopState(f.day, f.stop);
+        el.classList.toggle("past", st === "past");
+        el.classList.toggle("current", st === "current");
+      });
+    } else if (S.route.tab === "today") {
+      const clocks = $(".hero .clocks");
+      if (clocks) clocks.innerHTML = `${icon("clock")} ${clockIn(TZ)} Toronto · ${clockIn(HOME_TZ)} Vancouver`;
+      const nn = $(".now-next");
+      const { current, next } = nowNext();
+      const html = (current ? nowCard("Happening now", current, true) : "") + (next ? nowCard(current ? "Up next" : "Next up", next, false) : "");
+      if (nn && nn.innerHTML.trim() !== html.trim()) nn.innerHTML = html;
+      document.querySelectorAll(".mini-plan li[data-stop]").forEach((li) => {
+        const f = findStop(li.dataset.stop);
+        if (!f) return;
+        const st = stopState(f.day, f.stop);
+        li.classList.toggle("past", st === "past");
+        li.classList.toggle("current", st === "current");
+      });
+    }
   }
 
   function showLock(msg) {
