@@ -441,6 +441,10 @@ a.meta { color: var(--accent); }
 .task.done .box .ic { opacity: 1; }
 .task.done .txt { color: var(--muted); text-decoration: line-through; }
 .notes { display: grid; gap: 10px; }
+.perks { display: grid; gap: 8px; }
+.perk { display: grid; gap: 3px; padding: 11px 13px; border-radius: 14px; background: var(--surface-2); width: 100%; text-align: left; }
+.perk b { font-size: .95rem; }
+.perk span { font-size: .88rem; color: var(--muted); line-height: 1.45; }
 .note-card { background: var(--note-bg); border-radius: 16px; padding: 13px 15px; display: grid; gap: 4px; text-align: left; width: 100%; }
 .note-card p { white-space: pre-wrap; font-size: .93rem; }
 .settings .setting { display: flex; align-items: center; gap: 12px; padding: 11px 0; width: 100%; }

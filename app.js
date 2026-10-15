@@ -240,9 +240,10 @@
     t.contacts = t.contacts || [];
     t.tasks = t.tasks || [];
     t.notes = t.notes || [];
+    t.perks = t.perks || [];
     t.guides = t.guides || {};
     const ensure = (o) => { if (!o.id) o.id = uid(); return o; };
-    [t.route, t.bookings, t.contacts, t.tasks, t.notes].forEach((list) => list.forEach(ensure));
+    [t.route, t.bookings, t.contacts, t.tasks, t.notes, t.perks].forEach((list) => list.forEach(ensure));
     t.days.forEach((d) => {
       ensure(d);
       d.notes = d.notes || [];
@@ -801,6 +802,13 @@
     html += `<section class="card"><h2 class="card-title">${icon("ticket")} Bookings</h2><div class="bookings">${t.bookings.map(bookingCard).join("")}</div>
       ${S.editing ? `<button class="add-row inline" data-act="add" data-type="booking">${icon("plus")} Add a booking</button>` : ""}</section>`;
 
+    if (t.perks.length || S.editing) {
+      html += `<section class="card"><h2 class="card-title">${icon("star")} Card perks <span class="count">Visa Infinite Privilege</span></h2>
+        <ul class="perks">${t.perks.map((x) => `<li>${S.editing ? `<button class="perk editable" data-act="edit" data-type="perk" data-id="${esc(x.id)}">` : `<div class="perk">`}
+          <b>${esc(x.title)}</b><span>${esc(x.desc)}</span>${S.editing ? `</button>` : `</div>`}</li>`).join("")}</ul>
+        ${S.editing ? `<button class="add-row inline" data-act="add" data-type="perk">${icon("plus")} Add a perk</button>` : ""}</section>`;
+    }
+
     html += `<section class="card"><h2 class="card-title">${icon("user")} Contacts</h2><ul class="contacts">${t.contacts.map((c) => `<li>
         ${S.editing ? `<button class="contact-main editable" data-act="edit" data-type="contact" data-id="${esc(c.id)}">` : `<div class="contact-main">`}
           <span class="avatar">${esc((c.name || "?").slice(0, 1))}</span><span><b>${esc(c.name)}</b><small>${esc(c.role)}</small>${c.phone ? `<small class="mono">${esc(c.phone)}</small>` : ""}</span>
@@ -904,6 +912,10 @@
       { k: "group", label: "Group", type: "text", list: "taskGroups" },
       { k: "due", label: "Show on Today from", type: "daySelect" }
     ]},
+    perk: { title: "Perk", fields: [
+      { k: "title", label: "Perk", type: "text" },
+      { k: "desc", label: "Details", type: "textarea" }
+    ]},
     note: { title: "Note", fields: [
       { k: "title", label: "Title", type: "text" },
       { k: "body", label: "Note", type: "textarea", rows: 6 }
@@ -928,7 +940,7 @@
     const t = S.trip;
     if (type === "stop") { const f = findStop(id); return f && { obj: f.stop, list: f.day.stops, day: f.day }; }
     if (type === "day") { const d = dayById(id); return d && { obj: d, list: t.days }; }
-    const lists = { booking: t.bookings, contact: t.contacts, task: t.tasks, note: t.notes, route: t.route };
+    const lists = { booking: t.bookings, contact: t.contacts, task: t.tasks, note: t.notes, route: t.route, perk: t.perks };
     if (lists[type]) { const o = lists[type].find((x) => x.id === id); return o && { obj: o, list: lists[type] }; }
     for (const k of Object.keys(t.guides)) {
       const g = t.guides[k];
@@ -1136,6 +1148,7 @@
     else if (type === "contact") { list = t.contacts; obj = { id: uid(), name: "", role: "", phone: "", email: "" }; }
     else if (type === "task") { list = t.tasks; obj = { id: uid(), text: "", group: "", due: "" }; }
     else if (type === "note") { list = t.notes; obj = { id: uid(), title: "", body: "" }; }
+    else if (type === "perk") { list = t.perks; obj = { id: uid(), title: "", desc: "" }; }
     else if (type === "route") { list = t.route; obj = { id: uid(), code: "", city: "", when: "" }; }
     else if (type === "fact") { list = t.guides[opts.city].facts; obj = { id: uid(), label: "", value: "" }; }
     else if (type === "guideItem") { const sec = t.guides[opts.city].sections.find((x) => x.id === opts.sec); list = sec.items; obj = { id: uid(), title: "", desc: "" }; }
