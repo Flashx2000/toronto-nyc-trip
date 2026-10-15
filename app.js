@@ -1351,7 +1351,7 @@
       case "password-sheet": openSheet({ type: "password" }); break;
       case "change-password": {
         const p1 = $("#pw1").value, p2 = $("#pw2").value;
-        if (p1.length < 6) { openSheet({ type: "password", status: { ok: false, msg: "Use at least 6 characters." } }); return; }
+        if (p1.length < 4) { openSheet({ type: "password", status: { ok: false, msg: "Use at least 4 characters." } }); return; }
         if (p1 !== p2) { openSheet({ type: "password", status: { ok: false, msg: "The passwords don't match." } }); return; }
         const old = S.password;
         S.password = p1;
